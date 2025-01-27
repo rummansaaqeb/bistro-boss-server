@@ -144,9 +144,20 @@ async function run() {
         app.delete('/menu/:id', verifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id;
             const query = { _id: id };
-            console.log(query);
             const result = await menuCollection.deleteOne(query);
             res.send(result);
+        });
+
+        app.get('/menu/:id', async (req, res) => {
+            const id = req.params.id;
+            console.log(id);
+            const query = { _id: id };
+            const result = await menuCollection.findOne(query);
+            res.send(result);
+        });
+
+        app.patch('/menu/:id', async (req, res) => {
+            
         })
 
 
