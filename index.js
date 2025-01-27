@@ -35,6 +35,15 @@ async function run() {
         const reviewCollection = client.db("bistroDB").collection('reviews');
         const cartCollection = client.db("bistroDB").collection('carts');
 
+        // jwt related api
+        
+        app.post('/jwt', async (req, res) => {
+            const user = req.body;
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
+            res.send({ token });
+        })
+
+
 
         // user related api
 
@@ -58,9 +67,9 @@ async function run() {
             res.send(result)
         });
 
-        app.patch('/users/admin/:id', async(req, res) => {
+        app.patch('/users/admin/:id', async (req, res) => {
             const id = req.params.id;
-            const filter = {_id: new ObjectId(id)};
+            const filter = { _id: new ObjectId(id) };
             const updatedDoc = {
                 $set: {
                     role: 'admin'
