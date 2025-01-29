@@ -237,12 +237,44 @@ async function run() {
         })
 
         app.get('/payments/:email', verifyToken, async (req, res) => {
-            const query = {email: req.params.email};
-            if(req.params.email !== req.decoded.email) {
-                return res.status(403).send({message: "Forbidden Access"});
+            const query = { email: req.params.email };
+            if (req.params.email !== req.decoded.email) {
+                return res.status(403).send({ message: "Forbidden Access" });
             }
             const result = await paymentCollection.find(query).toArray();
             res.send(result)
+        })
+
+
+        // stats or analytics
+
+        app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
+            const users = await userCollection.estimatedDocumentCount();
+            const menuItems = await menuCollection.estimatedDocumentCount();
+            const orders = await paymentCollection.estimatedDocumentCount();
+
+            // this is not the best way
+            // const payments = await paymentCollection.find().toArray();
+            // const revenue = payments.reduce((total, payment) => total + payment.price , 0);
+
+            // this is the better way
+            const revenue = await paymentCollection.aggregate([
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: "$price" }
+                    }
+                }
+            ]).toArray();
+
+            const totalRevenue = revenue[0]?.total || 0;
+
+            res.send({
+                users,
+                menuItems,
+                orders,
+                totalRevenue,
+            })
         })
 
 
