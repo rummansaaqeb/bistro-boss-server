@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 const app = express();
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
@@ -10,6 +11,7 @@ const port = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded());
 
 
 
@@ -243,6 +245,98 @@ async function run() {
             }
             const result = await paymentCollection.find(query).toArray();
             res.send(result)
+        });
+
+        app.post('/create-ssl-payment', async (req, res) => {
+            const payment = req.body;
+            const trxId = new ObjectId().toString();
+            payment.transactionId = trxId;
+
+            // Store ID: bistr67d922f7120e6
+            // Store Password(API / Secret Key): bistr67d922f7120e6@ssl
+            // Merchant Panel URL: https://sandbox.sslcommerz.com/manage/ (Credential as you inputted in the time of registration)
+            // Store name: testbistrxit5
+            // Registered URL: www.bistroboss.com
+            // Session API to generate transaction: https://sandbox.sslcommerz.com/gwprocess/v3/api.php
+            // Validation API: https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php?wsdl
+            // Validation API(Web Service) name: https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php
+
+
+            const initiate = {
+                store_id: "bistr67d922f7120e6",
+                store_passwd: "bistr67d922f7120e6@ssl",
+                total_amount: payment.price,
+                currency: "BDT",
+                tran_id: trxId,
+                success_url: "http://localhost:5000/success-payment",
+                fail_url: "http://localhost:5173/fail",
+                cancel_url: "http://localhost:5173/cancel",
+                ipn_url: "http://localhost:5000/ipn-success-payment",
+                cus_name: 'Customer Name',
+                cus_email: `${payment.email}`,
+                cus_add1: "Dhaka&",
+                cus_add2: "Dhaka&",
+                cus_city: "Dhaka&",
+                cus_state: "Dhaka&",
+                cus_postcode: 1000,
+                cus_country: "Bangladesh",
+                cus_phone: "01711111111",
+                cus_fax: "01711111111",
+                shipping_method: "NO",
+                product_name: "Laptop",
+                product_profile: "general",
+                product_category: "Laptop",
+                multi_card_name: "mastercard,visacard,amexcard",
+                value_a: "ref001_A&",
+                value_b: "ref002_B&",
+                value_c: "ref003_C&",
+                value_d: "ref004_D"
+            }
+
+            const iniResponse = await axios({
+                url: "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
+                method: "POST",
+                data: initiate,
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+            });
+
+            const saveData = await paymentCollection.insertOne(payment);
+            const gatewayUrl = iniResponse?.data?.GatewayPageURL
+
+            res.send({ gatewayUrl });
+        });
+
+        app.post('/success-payment', async (req, res) => {
+            const paymentSuccess = req.body;
+
+            // VALIDATION
+            const { data } = await axios.get(`https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php?val_id=${paymentSuccess.val_id}&store_id=bistr67d922f7120e6&store_passwd=bistr67d922f7120e6@ssl&format=json`);
+
+            if (data.status !== 'VALID') {
+                return res.send({ message: "Invalid Payment" })
+            }
+
+            // Update The Payment
+
+            const updatePayment = await paymentCollection.updateOne({ transactionId: data.tran_id }, {
+                $set: {
+                    status: "success"
+                }
+            });
+
+            const payment = await paymentCollection.findOne({ transactionId: data.tran_id })
+
+            const query = {
+                _id: {
+                    $in: payment.cartIds.map(id => new ObjectId(id))
+                }
+            };
+
+            const deleteResult = await cartCollection.deleteMany(query);
+
+            res.redirect('http://localhost:5173/success')
         })
 
 
